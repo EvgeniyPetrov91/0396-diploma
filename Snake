@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Змейка дипломная</title>
+		<style>
+			body {
+				background-image: url(image/a-snake-with-a-blue-face-and-yellow-eyes.jpg);
+				text-align: center;
+				font-family: helvetica;
+			}
+			canvas {
+				border: 4px solid rgb(31, 31, 31);
+				border-radius: 6px;ame
+			}
+			h1 {
+				font-style: italic;
+				color: rgb(255, 255, 255);
+				font-weight: 700;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Просто змейка, играй и наслаждайся!</h1>
+		<canvas id="stage" height="500" width="620"></canvas>
+
+		<script>
+			let Keyboard
+			let Game
+			let Component
+			let canvas // Игровой экран
+			let context
+			let snake
+			let gameDraw // Розыгрыш
+			let tail // Хвост
+			let cell // ячейка
+
+			Keyboard = Keyboard || {}
+			Game = Game || {}
+			Component = Component || {}
+			/**
+			 * Кнопки на клавиатуре
+			 */
+			Keyboard.Keymap = {
+				37: 'left',
+				38: 'up',
+				39: 'right',
+				40: 'down',
+			}
+
+			/**
+			 * События для клавиатуры
+			 */
+			Keyboard.ControllerEvents = function () {
+				let self = this
+				this.pressKey = null
+				this.keymap = Keyboard.Keymap
+
+				// Союытия для кнопок
+				document.onkeydown = function (event) {
+					self.pressKey = event.which
+				}
+
+				// Кнопки
+				this.getKey = function () {
+					return this.keymap[this.pressKey]
+				}
+			}
+
+			/**
+			 * Игровые компоненты
+			 */
+			Component.Stage = function (canvas, conf) {
+				this.keyEvent = new Keyboard.ControllerEvents()
+				this.width = canvas.width
+				this.height = canvas.height
+				this.length = []
+				this.food = {}
+				this.score = 0
+				this.direction = 'right'
+				this.conf = {
+					cw: 10,
+					size: 5,
+					fps: 1000,
+				}
+
+				if (typeof conf == 'object') {
+					for (let key in conf) {
+						if (conf.hasOwnProperty(key)) {
+							this.conf[key] = conf[key]
+						}
+					}
+				}
+			}
+
+			/**
+			 * Составляющая змейки
+			 */
+			Component.Snake = function (canvas, conf) {
+				// Стадия игры
+				this.stage = new Component.Stage(canvas, conf)
+
+				this.initSnake = function () {
+					// счетчик для змейки
+					for (let i = 0; i < this.stage.conf.size; i++) {
+						// Добавление после поедания
+						this.stage.length.push({ x: i, y: 0 })
+					}
+				}
+
+				// Змейка
+				this.initSnake()
+
+				// еда
+				this.initFood = function () {
+					// добавление еды
+					this.stage.food = {
+						x: Math.round(
+							(Math.random() * (this.stage.width - this.stage.conf.cw)) /
+								this.stage.conf.cw
+						),
+						y: Math.round(
+							(Math.random() * (this.stage.height - this.stage.conf.cw)) /
+								this.stage.conf.cw
+						),
+					}
+				}
+
+				// Еда
+				this.initFood()
+
+				// Перезапуск игры
+				this.restart = function () {
+					this.stage.length = []
+					this.stage.food = {}
+					this.stage.score = 0
+					this.stage.direction = 'right'
+					this.stage.keyEvent.pressKey = null
+					this.initSnake()
+					this.initFood()
+				}
+			}
+
+			/**
+			 * Начало игры
+			 */
+			Game.Draw = function (context, snake) {
+				this.drawStage = function () {
+					// Нажатие кнопок (проверка)
+					let keyPress = snake.stage.keyEvent.getKey()
+					if (typeof keyPress != 'undefined') {
+						snake.stage.direction = keyPress
+					}
+					// Экран
+					context.fillStyle = 'rgb(35, 42, 8)'
+					context.fillRect(0, 0, snake.stage.width, snake.stage.height)
+					// Старт змеи
+					let nx = snake.stage.length[0].x
+					let ny = snake.stage.length[0].y
+					// Добавление позиции
+					switch (snake.stage.direction) {
+						case 'right':
+							nx++
+							break
+						case 'left':
+							nx--
+							break
+						case 'up':
+							ny--
+							break
+						case 'down':
+							ny++
+							break
+					}
+
+					// столкновение
+					if (this.collision(nx, ny) == true) {
+						snake.restart()
+						return
+					}
+
+					// Еда для змейки (Рост хвоста)
+					if (nx == snake.stage.food.x && ny == snake.stage.food.y) {
+						tail = { x: nx, y: ny }
+						snake.stage.score++
+						snake.initFood()
+					} else {
+						tail = snake.stage.length.pop()
+						tail.x = nx
+						tail.y = ny
+					}
+					snake.stage.length.unshift(tail)
+
+					// Змея
+					for (let i = 0; i < snake.stage.length.length; i++) {
+						cell = snake.stage.length[i]
+						this.drawCell(cell.x, cell.y)
+					}
+					this.drawCell(snake.stage.food.x, snake.stage.food.y)
+				}
+
+				// Состав змеи
+				this.drawCell = function (x, y) {
+					context.fillStyle = 'rgb(17, 170, 170)'
+					context.beginPath()
+					context.arc(
+						x * snake.stage.conf.cw + 10,
+						y * snake.stage.conf.cw + 10,
+						6,
+						0,
+						2 * Math.PI,
+						false
+					)
+					context.fill()
+				}
+
+				// Проверка на столкновение со стенкой
+				this.collision = function (nx, ny) {
+					if (
+						nx == -1 ||
+						nx == snake.stage.width / snake.stage.conf.cw ||
+						ny == -1 ||
+						ny == snake.stage.height / snake.stage.conf.cw
+					) {
+						return true
+					}
+					return false
+				}
+			}
+
+			Game.Snake = function (elementId, conf) {
+				canvas = document.getElementById(elementId)
+				context = canvas.getContext('2d')
+				snake = new Component.Snake(canvas, conf)
+				gameDraw = new Game.Draw(context, snake)
+
+				// Интервал
+				setInterval(function () {
+					gameDraw.drawStage()
+				}, snake.stage.conf.fps)
+			}
+
+			window.onload = function () {
+				snake = new Game.Snake('stage', { fps: 100, size: 6 })
+			}
+		</script>
+	</body>
+</html>
